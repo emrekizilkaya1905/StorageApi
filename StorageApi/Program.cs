@@ -1,4 +1,8 @@
+using Scalar.AspNetCore;
+using StorageApi.Extensions;
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRepositories(builder.Configuration);
 
 // Add services to the container.
 
@@ -12,6 +16,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
