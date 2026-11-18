@@ -17,10 +17,23 @@ public class ProductsController : ControllerBase
 
     // GET: api/products
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProduct()
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProduct([FromQuery] string? category, [FromQuery] string? name)
     {
-        return await _context.Products
-            .AsNoTracking()
+        var query = _context.Products.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var categoryFilter = category.Trim();
+            query = query.Where(product => product.Category == categoryFilter);
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var nameFilter = name.Trim();
+            query = query.Where(product => product.Name.Contains(nameFilter));
+        }
+
+        return await query
             .Select(product => new ProductDto
             {
                 Id = product.Id,
@@ -29,6 +42,24 @@ public class ProductsController : ControllerBase
                 Count = product.Count
             })
             .ToListAsync();
+    }
+
+    // GET: api/products/stats
+    [HttpGet("stats")]
+    public async Task<ActionResult<ProductStatsDto>> GetStats()
+    {
+        var stats = await _context.Products
+            .AsNoTracking()
+            .GroupBy(product => 1)
+            .Select(products => new ProductStatsDto
+            {
+                TotalProducts = products.Count(),
+                TotalInventoryValue = products.Sum(product => (long)product.Price * product.Count),
+                AveragePrice = products.Average(product => (decimal)product.Price)
+            })
+            .SingleOrDefaultAsync();
+
+        return Ok(stats ?? new ProductStatsDto());
     }
 
     // GET: api/products/5
