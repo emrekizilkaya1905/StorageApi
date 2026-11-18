@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+using StorageApi.DTOs;
 using StorageApi.Models;
 
 [Route("api/[controller]")]
@@ -7,21 +9,31 @@ using StorageApi.Models;
 public class ProductsController : ControllerBase
 {
     private readonly StorageApiContext _context;
+
     public ProductsController(StorageApiContext context)
     {
         _context = context;
     }
 
-    // GET: api/Product
+    // GET: api/products
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Product>>> GetProduct()
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProduct()
     {
-        return await _context.Products.ToListAsync();
+        return await _context.Products
+            .AsNoTracking()
+            .Select(product => new ProductDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price,
+                Count = product.Count
+            })
+            .ToListAsync();
     }
 
-    // GET: api/Product/5
+    // GET: api/products/5
     [HttpGet("{id}")]
-    public async Task<ActionResult<Product>> GetProduct(int id)
+    public async Task<ActionResult<ProductDto>> GetProduct(int id)
     {
         var product = await _context.Products.FindAsync(id);
 
@@ -30,20 +42,25 @@ public class ProductsController : ControllerBase
             return NotFound();
         }
 
-        return product;
+        return ToDto(product);
     }
 
-    // PUT: api/Product/5
-    // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+    // PUT: api/products/5
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutProduct(int? id, Product product)
+    public async Task<IActionResult> PutProduct(int id, CreateProductDto dto)
     {
-        if (id != product.Id)
+        var product = await _context.Products.FindAsync(id);
+        if (product == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        _context.Entry(product).State = EntityState.Modified;
+        product.Name = dto.Name;
+        product.Price = dto.Price;
+        product.Category = dto.Category;
+        product.Shelf = dto.Shelf;
+        product.Count = dto.Count;
+        product.Description = dto.Description;
 
         try
         {
@@ -51,33 +68,40 @@ public class ProductsController : ControllerBase
         }
         catch (DbUpdateConcurrencyException)
         {
-            if (!ProductExists(id))
+            if (!await _context.Products.AnyAsync(product => product.Id == id))
             {
                 return NotFound();
             }
-            else
-            {
-                throw;
-            }
+
+            throw;
         }
 
         return NoContent();
     }
 
-    // POST: api/Product
-    // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+    // POST: api/products
     [HttpPost]
-    public async Task<ActionResult<Product>> PostProduct(Product product)
+    public async Task<ActionResult<ProductDto>> PostProduct(CreateProductDto dto)
     {
+        var product = new Product
+        {
+            Name = dto.Name,
+            Price = dto.Price,
+            Category = dto.Category,
+            Shelf = dto.Shelf,
+            Count = dto.Count,
+            Description = dto.Description
+        };
+
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction("GetProduct", new { id = product.Id }, product);
+        return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
     }
 
-    // DELETE: api/Product/5
+    // DELETE: api/products/5
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteProduct(int? id)
+    public async Task<IActionResult> DeleteProduct(int id)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
@@ -91,8 +115,11 @@ public class ProductsController : ControllerBase
         return NoContent();
     }
 
-    private bool ProductExists(int? id)
+    private static ProductDto ToDto(Product product) => new()
     {
-        return _context.Products.Any(e => e.Id == id);
-    }
+        Id = product.Id,
+        Name = product.Name,
+        Price = product.Price,
+        Count = product.Count
+    };
 }
